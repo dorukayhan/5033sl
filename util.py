@@ -5,6 +5,7 @@ from typing import Optional
 from ucimlrepo import fetch_ucirepo, dotdict
 
 def get_dataset() -> dotdict:
+    """downloads the dataset from uci ml repo"""
     return fetch_ucirepo(id=848)
 
 #                                      get_dataset()        X             y          X_train     X_validate      X_test        y_train     y_validate      y_test
