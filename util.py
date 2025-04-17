@@ -51,7 +51,7 @@ def data_prep(tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.D
     return dataset, X, y, X_train_real, X_validate, X_test, y_train_real, y_validate, y_test
 
 def gauss(a: float, mean: float, variance: float) -> float:
-    """gaussian probability thing"""
+    """gaussian probability evaluator"""
     pay: float = math.exp(-((a - mean) ** 2) / (2 * variance))
     payda: float = math.sqrt(2 * math.pi * variance)
     return pay / payda
