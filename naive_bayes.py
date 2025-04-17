@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import util
 from fractions import Fraction
+from tqdm.auto import tqdm
+
+tqdm.pandas()
 
 def main(argv: list[str]=[]):
     # get and 3-way split dataset
@@ -44,7 +47,8 @@ def main(argv: list[str]=[]):
                 "n": len(train_given_label[feature].dropna())
             }
             print(f"params for P({feature}|{label}): {p_feat[label][feature]}")
-    # "training" done, time to test
+    # "training" done
+    print("training done, testing...")
     def nbeval(instance: pd.Series) -> str:
         # import random
         # print(instance)
@@ -61,8 +65,7 @@ def main(argv: list[str]=[]):
                     logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
         # argmax
         return max(logscores.keys(), key=logscores.get)
-        
-    y_pred: pd.Series = X_test.apply(nbeval, axis="columns", result_type="reduce")
+    y_pred: pd.Series = X_test.progress_apply(nbeval, axis="columns", result_type="reduce")
     result: pd.DataFrame = y_pred.compare(y_test["class"], keep_shape=True, keep_equal=True)
     TP: int = len(result.loc[(result["self"] == "e") & (result["other"] == "e")])
     TN: int = len(result.loc[(result["self"] == "p") & (result["other"] == "p")])
