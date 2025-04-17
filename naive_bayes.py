@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import pandas as pd
+import random
 import util
 from fractions import Fraction
 from tqdm.auto import tqdm
@@ -9,7 +10,17 @@ tqdm.pandas()
 
 def main(argv: list[str]=[]):
     # get and 3-way split dataset
-    mushrooms, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test = util.data_prep(int(argv[1]) if len(argv) > 1 else None)
+    mushrooms = util.get_dataset()
+    if len(argv) > 1:
+        random.seed(int(argv[1]))
+    # do the whole thing just once for now we're refactoring
+    TP, TN, FP, FN = NB(mushrooms, random.randint(0, 2**32 - 1))
+    print(f"{TP+TN+FP+FN} evals, {TP} TPs, {TN} TNs, {FP} FPs, {FN} FNs")
+    print(f"accuracy {(TP+TN)/(TP+TN+FP+FN)}, recall/TPR {TP/(TP+FN)}, FPR {FP/(FP+TN)}")
+
+def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
+    # 3-way split dataset
+    _, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test = util.split_dataset(mushrooms, random.randint(0, 2**32 - 1))
     # go back to 2-way split because naive bayes doesn't have any hyperparameters???
     X_train_full: pd.DataFrame = pd.concat([X_train, X_validate])
     y_train_full: pd.DataFrame = pd.concat([y_train, y_validate])
@@ -73,9 +84,7 @@ def main(argv: list[str]=[]):
     TN: int = len(result.loc[(result["self"] == "p") & (result["other"] == "p")])
     FP: int = len(result.loc[(result["self"] == "e") & (result["other"] == "p")])
     FN: int = len(result.loc[(result["self"] == "p") & (result["other"] == "e")])
-    print(f"{len(result)} evals, {TP} TPs, {TN} TNs, {FP} FPs, {FN} FNs")
-    print(f"accuracy {(TP+TN)/len(result)}, recall/TPR {TP/(TP+FN)}, FPR {FP/(FP+TN)}")
-    return p_feat
+    return TP, TN, FP, FN
 
 if __name__ == "__main__":
     import sys

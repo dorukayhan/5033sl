@@ -29,18 +29,16 @@ continuous_feats: set[str] = set(["cap-diameter", "stem-height", "stem-width"])
 labels: set[str] = set(["e", "p"])
 
 def get_dataset() -> dotdict:
-    """downloads the dataset from uci ml repo"""
+    """downloads the mushroom dataset from uci ml repo"""
+    print("getting dataset")
     return fetch_ucirepo(id=848)
 
-#                                      get_dataset()        X             y          X_train     X_validate      X_test        y_train     y_validate      y_test
-def data_prep(tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def split_dataset(dataset: dotdict, tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    downloads the dataset from uci ml repo and 3-way splits it, returning
+    3-way splits the given uci ml repo dataset from fetch_ucirepo, returning
     (raw fetch_ucirepo return, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test)
     can reproduce a specific split by specifying tts_seed
     """
-    print("getting dataset")
-    dataset = get_dataset()
     X: pd.DataFrame = dataset.data.features
     y: pd.DataFrame = dataset.data.targets
     tts_seed_real: int = tts_seed if tts_seed else random.randint(0, 2**32 - 1)
@@ -50,8 +48,47 @@ def data_prep(tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.D
     X_train_real, X_validate, y_train_real, y_validate = train_test_split(X_train, y_train, test_size=0.25, shuffle=False)
     return dataset, X, y, X_train_real, X_validate, X_test, y_train_real, y_validate, y_test
 
+#                                      get_dataset()        X             y          X_train     X_validate      X_test        y_train     y_validate      y_test
+def data_prep(tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    downloads the dataset from uci ml repo and 3-way splits it, returning
+    (raw fetch_ucirepo return, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test)
+    can reproduce a specific split by specifying tts_seed
+    """
+    return split_dataset(get_dataset(), tts_seed)
+    # print("getting dataset")
+    # dataset = get_dataset()
+    # X: pd.DataFrame = dataset.data.features
+    # y: pd.DataFrame = dataset.data.targets
+    # tts_seed_real: int = tts_seed if tts_seed else random.randint(0, 2**32 - 1)
+    # print(f"splitting dataset, seed={tts_seed_real}")
+    # # 60% training 20% validation 20% testing
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=tts_seed_real)
+    # X_train_real, X_validate, y_train_real, y_validate = train_test_split(X_train, y_train, test_size=0.25, shuffle=False)
+    # return dataset, X, y, X_train_real, X_validate, X_test, y_train_real, y_validate, y_test
+
 def gauss(a: float, mean: float, variance: float) -> float:
     """gaussian probability evaluator"""
     pay: float = math.exp(-((a - mean) ** 2) / (2 * variance))
     payda: float = math.sqrt(2 * math.pi * variance)
     return pay / payda
+
+class ConfusionMatrix():
+    def __init__(self, TP: int, TN: int, FP: int, FN: int):
+        self.data: tuple[int, int, int, int] = (TP, TN, FP, FN)
+    
+    # HELP I ACCIDENTALLY WROTE ARM ASSEMBLY
+    def accuracy(self) -> float:
+        TP, TN, FP, FN = self.data
+        return (TP + TN) / sum(self.data)
+    
+    def TPR(self) -> float:
+        TP, TN, FP, FN = self.data
+        return TP / (TP + FN)
+    
+    def FPR(self) -> float:
+        TP, TN, FP, FN = self.data
+        return FP / (FP + TN)
+    
+    def recall(self) -> float:
+        return self.TPR()
