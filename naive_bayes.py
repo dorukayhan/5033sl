@@ -63,9 +63,8 @@ def main(argv: list[str]=[]):
                     logscores[label] += math.log(p_feat[label][feature][value])
             # continuous features: util.gauss gives P
             for feature in util.continuous_feats:
-                value = notna[feature]
-                if value:
-                    logscores[label] += math.log(util.gauss(value, p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
+                if notna[feature]:
+                    logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
         # argmax
         return max(logscores.keys(), key=logscores.get)
     y_pred: pd.Series = X_test.progress_apply(nbeval, axis="columns", result_type="reduce")
