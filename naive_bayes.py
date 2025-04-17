@@ -54,15 +54,18 @@ def main(argv: list[str]=[]):
         # print(instance)
         # return "e" if random.random() < 0.5 else "p"
         logscores: dict[str, float] = {label: math.log(p_label[label]) for label in util.labels}
+        notna: pd.Series = instance.notna() # quite slow, avoid spamming in the continuous feature loop
         for label in logscores:
             # category features: P is right there in p_feat
             for feature in util.category_feats:
-                if instance[feature] in util.category_feats[feature]:
-                    logscores[label] += math.log(p_feat[label][feature][instance[feature]])
+                value = instance[feature]
+                if value in util.category_feats[feature]:
+                    logscores[label] += math.log(p_feat[label][feature][value])
             # continuous features: util.gauss gives P
             for feature in util.continuous_feats:
-                if instance.notna()[feature]:
-                    logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
+                value = notna[feature]
+                if value:
+                    logscores[label] += math.log(util.gauss(value, p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
         # argmax
         return max(logscores.keys(), key=logscores.get)
     y_pred: pd.Series = X_test.progress_apply(nbeval, axis="columns", result_type="reduce")
