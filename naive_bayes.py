@@ -4,19 +4,27 @@ import pandas as pd
 import random
 import util
 from fractions import Fraction
+from matplotlib import pyplot as plt
 from tqdm.auto import tqdm
+from util import ConfusionMatrix
 
-tqdm.pandas()
+# tqdm.pandas()
 
 def main(argv: list[str]=[]):
     # get and 3-way split dataset
     mushrooms = util.get_dataset()
     if len(argv) > 1:
         random.seed(int(argv[1]))
-    # do the whole thing just once for now we're refactoring
-    TP, TN, FP, FN = NB(mushrooms, random.randint(0, 2**32 - 1))
-    print(f"{TP+TN+FP+FN} evals, {TP} TPs, {TN} TNs, {FP} FPs, {FN} FNs")
-    print(f"accuracy {(TP+TN)/(TP+TN+FP+FN)}, recall/TPR {TP/(TP+FN)}, FPR {FP/(FP+TN)}")
+    results: list[dict[str, int | float]] = []
+    for i in tqdm(range(50)):
+        TP, TN, FP, FN = NB(mushrooms, random.randint(0, 2**32 - 1))
+        cm: ConfusionMatrix = ConfusionMatrix(TP, TN, FP, FN)
+        results.append(cm.everythingdict())
+    result_df: pd.DataFrame = pd.DataFrame(results)
+    result_df.to_csv("naive_bayes.csv", mode="w")
+    plt.boxplot(result_df[["ACC", "TPR", "FPR"]], label=["Accuracy", "TPR", "FPR"])
+    plt.show()
+    print(result_df)
 
 def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
     # 3-way split dataset
@@ -31,7 +39,7 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
     # figure out label probabilities. labels are balanced-ish so no need to smooth them
     label_counts: pd.Series = y_train_full.groupby("class").size()
     p_label: dict[str, Fraction] = {label: Fraction(label_counts[label], label_counts.sum()) for label in util.labels}
-    print(f"P(label) for each label: {p_label} (lc.sum() = {label_counts.sum()})")
+    # print(f"P(label) for each label: {p_label} (lc.sum() = {label_counts.sum()})")
     # figure out features' frequencies per label
     p_feat: dict[str, dict[str, dict[str, float]]] = {} # p_feat[label][feature][value] is P(feature=value|label). value can't be nan
     for label in util.labels:
@@ -47,8 +55,8 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
                 value: (value_counts.get(value, default=0) + (1/len(util.category_feats[feature]))) / (value_counts.sum() + 1)
                 for value in util.category_feats[feature]
             }
-            print(f"{value_counts.sum()} instances w/ {feature}")
-            print(f"P({feature}|{label}) = {p_feat[label][feature]}")
+            # print(f"{value_counts.sum()} instances w/ {feature}")
+            # print(f"P({feature}|{label}) = {p_feat[label][feature]}")
         # continuous features - assume a normal distribution to find P
         for feature in util.continuous_feats:
             # ignore missing values again
@@ -57,9 +65,9 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
                 "variance": train_given_label[feature].var(),
                 "n": len(train_given_label[feature].dropna())
             }
-            print(f"params for P({feature}|{label}): {p_feat[label][feature]}")
+            # print(f"params for P({feature}|{label}): {p_feat[label][feature]}")
     # "training" done
-    print("training done, testing...")
+    # print("training done, testing...")
     def nbeval(instance: pd.Series) -> str:
         # import random
         # print(instance)
@@ -78,7 +86,7 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
                     logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
         # argmax
         return max(logscores.keys(), key=logscores.get)
-    y_pred: pd.Series = X_test.progress_apply(nbeval, axis="columns", result_type="reduce")
+    y_pred: pd.Series = X_test.apply(nbeval, axis="columns", result_type="reduce")
     result: pd.DataFrame = y_pred.compare(y_test["class"], keep_shape=True, keep_equal=True)
     TP: int = len(result.loc[(result["self"] == "e") & (result["other"] == "e")])
     TN: int = len(result.loc[(result["self"] == "p") & (result["other"] == "p")])
