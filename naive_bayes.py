@@ -4,7 +4,6 @@ import pandas as pd
 import random
 import util
 from fractions import Fraction
-from matplotlib import pyplot as plt
 from tqdm.auto import tqdm
 from util import ConfusionMatrix
 
@@ -21,9 +20,8 @@ def main(argv: list[str]=[]):
         cm: ConfusionMatrix = ConfusionMatrix(TP, TN, FP, FN)
         results.append(cm.everythingdict())
     result_df: pd.DataFrame = pd.DataFrame(results)
-    result_df.to_csv("naive_bayes.csv", mode="w")
-    plt.boxplot(result_df[["ACC", "TPR", "FPR"]], label=["Accuracy", "TPR", "FPR"])
-    plt.show()
+    result_df.to_csv("naive_bayes.csv", mode="w", index=False)
+    util.plot_nb_results(result_df)
     print(result_df)
 
 def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
@@ -69,9 +67,6 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
     # "training" done
     # print("training done, testing...")
     def nbeval(instance: pd.Series) -> str:
-        # import random
-        # print(instance)
-        # return "e" if random.random() < 0.5 else "p"
         logscores: dict[str, float] = {label: math.log(p_label[label]) for label in util.labels}
         notna: pd.Series = instance.notna() # quite slow, avoid spamming in the continuous feature loop
         for label in logscores:
@@ -86,6 +81,8 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
                     logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
         # argmax
         return max(logscores.keys(), key=logscores.get)
+    def random_nbeval(instance: pd.Series) -> str: # intentionally left from testing
+        return random.choice(list(util.labels))
     y_pred: pd.Series = X_test.apply(nbeval, axis="columns", result_type="reduce")
     result: pd.DataFrame = y_pred.compare(y_test["class"], keep_shape=True, keep_equal=True)
     TP: int = len(result.loc[(result["self"] == "e") & (result["other"] == "e")])

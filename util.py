@@ -1,6 +1,7 @@
 import pandas as pd
 import math
 import random
+from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from typing import Optional
 from ucimlrepo import fetch_ucirepo, dotdict
@@ -72,6 +73,14 @@ def gauss(a: float, mean: float, variance: float) -> float:
     pay: float = math.exp(-((a - mean) ** 2) / (2 * variance))
     payda: float = math.sqrt(2 * math.pi * variance)
     return pay / payda
+
+def plot_nb_results(results: pd.DataFrame):
+    fig, ax = plt.subplots()
+    ax.boxplot(results[["ACC", "TPR", "FPR"]], label=["Accuracy", "TPR", "FPR"])
+    ax.set_ylim(0, 1)
+    ax.set_xticklabels(["Accuracy", "TPR", "FPR"])
+    ax.set(title=f"Metrics of {len(results)} naive Bayes runs with different train-test shuffles", ylabel="Metric value")
+    plt.show()
 
 class ConfusionMatrix():
     def __init__(self, TP: int, TN: int, FP: int, FN: int):
