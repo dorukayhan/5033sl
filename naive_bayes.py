@@ -23,6 +23,7 @@ def main(argv: list[str]=[]):
     result_df.to_csv("naive_bayes.csv", mode="w", index=False)
     util.plot_nb_results(result_df)
     print(result_df)
+    print(result_df.describe()[["ACC", "TPR", "FPR"]])
 
 def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
     # 3-way split dataset
