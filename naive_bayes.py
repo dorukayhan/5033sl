@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import random
 import util
+from concurrent.futures import ProcessPoolExecutor
 from fractions import Fraction
 from tqdm.auto import tqdm
 from util import ConfusionMatrix
@@ -11,14 +12,18 @@ from util import ConfusionMatrix
 
 def main(argv: list[str]=[]):
     # get and 3-way split dataset
+    print("getting dataset")
     mushrooms = util.get_dataset()
     if len(argv) > 1:
         random.seed(int(argv[1]))
     results: list[dict[str, int | float]] = []
-    for i in tqdm(range(50)):
-        TP, TN, FP, FN = NB(mushrooms, random.randint(0, 2**32 - 1))
-        cm: ConfusionMatrix = ConfusionMatrix(TP, TN, FP, FN)
-        results.append(cm.everythingdict())
+    run_count: int = 50
+    print(f"splitting dataset {run_count} different ways to train nb")
+    with ProcessPoolExecutor() as executor:
+        results = [
+            ConfusionMatrix(TP, TN, FP, FN).everythingdict() for TP, TN, FP, FN
+            in tqdm(executor.map(NB, [mushrooms]*run_count, random.sample(range(2**32), run_count)), total=run_count)
+        ]
     result_df: pd.DataFrame = pd.DataFrame(results)
     result_df.to_csv("naive_bayes.csv", mode="w", index=False)
     util.plot_nb_results(result_df)
@@ -27,7 +32,7 @@ def main(argv: list[str]=[]):
 
 def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
     # 3-way split dataset
-    _, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test = util.split_dataset(mushrooms, random.randint(0, 2**32 - 1))
+    _, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test = util.split_dataset(mushrooms, tts_seed)
     # go back to 2-way split because naive bayes doesn't have any hyperparameters???
     X_train_full: pd.DataFrame = pd.concat([X_train, X_validate])
     y_train_full: pd.DataFrame = pd.concat([y_train, y_validate])

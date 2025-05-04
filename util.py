@@ -31,7 +31,6 @@ labels: set[str] = set(["e", "p"])
 
 def get_dataset() -> dotdict:
     """downloads the mushroom dataset from uci ml repo"""
-    print("getting dataset")
     return fetch_ucirepo(id=848)
 
 def split_dataset(dataset: dotdict, tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
