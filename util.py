@@ -67,10 +67,10 @@ def data_prep(tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.D
     # X_train_real, X_validate, y_train_real, y_validate = train_test_split(X_train, y_train, test_size=0.25, shuffle=False)
     # return dataset, X, y, X_train_real, X_validate, X_test, y_train_real, y_validate, y_test
 
-def gauss(a: float, mean: float, variance: float) -> float:
+def gauss(a: float, mean: float, var: float) -> float:
     """gaussian probability evaluator"""
-    pay: float = math.exp(-((a - mean) ** 2) / (2 * variance))
-    payda: float = math.sqrt(2 * math.pi * variance)
+    pay: float = math.exp(-((a - mean) ** 2) / (2 * var))
+    payda: float = math.sqrt(2 * math.pi * var)
     return pay / payda
 
 def plot_nb_results(results: pd.DataFrame):

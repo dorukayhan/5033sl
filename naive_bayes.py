@@ -66,7 +66,7 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
             # ignore missing values again
             p_feat[label][feature] = { # dict[str, float]
                 "mean": train_given_label[feature].mean(),
-                "variance": train_given_label[feature].var(),
+                "var": train_given_label[feature].var(),
                 "n": len(train_given_label[feature].dropna())
             }
             # print(f"params for P({feature}|{label}): {p_feat[label][feature]}")
@@ -84,7 +84,7 @@ def NB(mushrooms: util.dotdict, tts_seed: int) -> tuple[int, int, int, int]:
             # continuous features: util.gauss gives P
             for feature in util.continuous_feats:
                 if notna[feature]:
-                    logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["variance"]))
+                    logscores[label] += math.log(util.gauss(instance[feature], p_feat[label][feature]["mean"], p_feat[label][feature]["var"]))
         # argmax
         return max(logscores.keys(), key=logscores.get)
     def random_nbeval(instance: pd.Series) -> str: # intentionally left from testing

@@ -9,7 +9,7 @@ def main(argv):
 
 class CPT:
     """conditional probability table for category target"""
-    def __init__(self, data: pd.DataFrame, target: tuple[str, set[str]], evidence: dict[str, set[str]]):
+    def __init__(self, data: pd.DataFrame, target: tuple[str, set[str]], evidence: dict[str, set[str]]={}):
         self.evidence_names: list[str] = list(evidence.keys())
         # first count everything
         self.counts: pd.Series = data.groupby(self.evidence_names + [target[0]], dropna=False).size()
@@ -21,7 +21,7 @@ class CPT:
         }
         self.domains[target[0]] = set(self.counts.index.get_level_values(target[0])).union(target[1])
     
-    def probs(self, evidence: dict[str, str]) -> dict[str, float]:
+    def probs(self, evidence: dict[str, str]={}) -> dict[str, float]:
         """returns P(target|the given evidence) for every known value of target"""
         query: list[str] = [evidence[name] for name in self.evidence_names]
         def get_count(target: str) -> int:
@@ -38,6 +38,26 @@ class CPT:
         return {
             tgt: (get_count(tgt) + (1/len(self.domains[self.target]))) / denom
             for tgt in self.domains[self.target]
+        }
+
+class ContinuousCPT(CPT):
+    """conditional probability table for continuous target"""
+    def __init__(self, data: pd.DataFrame, target: str, evidence: dict[str, set[str]]):
+        self.evidence_names: list[str] = list(evidence.keys())
+        # first get the gaussian stats
+        self.stats: pd.DataFrame = data.pivot_table(values=target, index=self.evidence_names, aggfunc=["mean", "var"], dropna=False)
+        # then get the domains
+        self.target: str = target
+        self.domains: dict[str, set] = {
+            attribute: set(self.stats.index.get_level_values(attribute)).union(evidence[attribute])
+            for attribute in self.evidence_names
+        }
+    
+    def probs(self, evidence: dict[str, str]) -> dict[str, float]:
+        query: list[str] = [evidence[name] for name in self.evidence_names]
+        return {
+            stat: self.stats[stat][self.target][*query]
+            for stat in ("mean", "var")
         }
 
 class BNNode:
