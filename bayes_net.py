@@ -29,12 +29,14 @@ class CPT:
                 # to query a series with a multiindex you pass each index's value in index level order
                 # which is easily done using one (1) character
                 # argument expansion is an unhinged feature thanks python
-                return self.counts[*(query + [target])]
+                # but it breaks if query is empty due to this cpt not being conditional on anything so we check that with "if query"
+                return self.counts[*(query + [target])] if query else self.counts[target]
             except KeyError: # count not recorded, assume 0
                 return 0
+        # other than that the math is the same as naive bayes training
+        denom: int = (self.counts[*query].sum() if query else self.counts.sum()) + 1
         return {
-            # other than that the math is the same as naive bayes training
-            tgt: (get_count(tgt) + (1/len(self.domains[self.target]))) / (self.counts[*query].sum() + 1)
+            tgt: (get_count(tgt) + (1/len(self.domains[self.target]))) / denom
             for tgt in self.domains[self.target]
         }
 
