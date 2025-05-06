@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import util
 from math import prod
+from typing import Callable
 
 def main(argv):
     # TODO
@@ -60,11 +61,33 @@ class ContinuousCPT(CPT):
             for stat in ("mean", "var")
         }
 
-class BNNode:
-    pass
-
-class BayesNet:
-    pass
+class TreeAugmentedNB:
+    def __init__(self, data: pd.DataFrame, klass: tuple[str, set[str]], category_feats: dict[str, set[str]], continuous_feats: set[str], correlant: str):
+        self.data: pd.DataFrame = data # might need it idk
+        self.klass: tuple[str, set[str]] = klass
+        self.correlant: str = correlant # every other feature depends on label AND this
+        self.continuous_cpts: dict[str, ContinuousCPT] = {
+            feature: ContinuousCPT(data, feature, {klass[0]: klass[1], correlant: category_feats[correlant]})
+            for feature in continuous_feats
+        }
+        self.category_cpts: dict[str, CPT] = {} # includes correlant and class
+        self.category_cpts[klass[0]] = CPT(data, klass)
+        self.category_cpts[correlant] = CPT(data, (correlant, category_feats[correlant]), {klass[0]: klass[1]})
+        evidence = {
+            klass[0]: klass[1],
+            correlant: category_feats[correlant]
+        }
+        for feature, values in category_feats.items(): # everything other than the correlant
+            if feature != correlant:
+                self.category_cpts[feature] = CPT(data, (feature, values), evidence)
+        self.category_domains: dict[str, set[str]] = category_feats # might need this too
+    
+    def create_nbeval(self, **kwargs) -> Callable[[pd.Series], str]:
+        """returns function to pass to X_test.apply to get predictions"""
+        def nbeval(instance: pd.Series) -> str:
+            # TODO
+            pass
+        return nbeval
 
 if __name__ == "__main__":
     import sys
