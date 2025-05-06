@@ -1,7 +1,7 @@
+import math
 import numpy as np
 import pandas as pd
 import util
-from math import prod
 from typing import Callable
 
 def main(argv):
@@ -82,12 +82,67 @@ class TreeAugmentedNB:
                 self.category_cpts[feature] = CPT(data, (feature, values), evidence)
         self.category_domains: dict[str, set[str]] = category_feats # might need this too
     
-    def create_nbeval(self, **kwargs) -> Callable[[pd.Series], str]:
+    def create_bneval(self, **kwargs) -> Callable[[pd.Series], str]:
         """returns function to pass to X_test.apply to get predictions"""
-        def nbeval(instance: pd.Series) -> str:
-            # TODO
-            pass
-        return nbeval
+        category_cpts_class_only: dict[str, CPT] = {
+            feat: CPT(data, (feat, self.category_domains[feat]), {self.klass[0]: self.klass[1]})
+            for feat in self.category_cpts if f != self.correlant
+        }
+        continuous_cpts_class_only: dict[str, ContinuousCPT] = {
+            feat: ContinuousCPT(data, feat, {self.klass[0]: self.klass[1]})
+            for feat in self.continuous_cpts.keys()
+        }
+        def bneval(instance: pd.Series) -> str:
+            # TODO do naive bayes twice
+            # once for correlant, once for class
+            # though for correlant we just find the probability of its given value instead of its most likely value
+            C: str = self.klass[0] # self.klass[0] is too long to type out constantly
+            CORR: str = self.correlant # so is self.correlant
+            # also dicts play nice with np.nan keys
+            class_evidence: dict = instance.to_dict()
+            correlant_evidence: dict = {k: v for k, v in class_evidence.items() if k != CORR}
+            correlant_cpt: CPT = self.category_cpts[CORR]
+            # correlant nb - finding P(correlant|C) w/ unknown C so need to do it for every label
+            logp_correlant: dict[str, float] = {
+                label: math.log(correlant_cpt.probs({C: label})[class_evidence[CORR]])
+                for label in self.klass[1]
+            }
+            for label in self.klass[1]:
+                feat_evidence: dict[str, str] = {C: label, CORR: class_evidence[CORR]}
+                # the numerator
+                for feature, value in correlant_evidence.items():
+                    if feature in self.category_cpts:
+                        logp_correlant[label] += math.log(self.category_cpts[feature].probs(feat_evidence)[value])
+                    else:
+                        dist_props: dict[str, float] = self.continuous_cpts[feature].probs(feat_evidence)
+                        logp_correlant[label] += math.log(util.gauss(value, **dist_props))
+                # the denominator - divide P(correlant|C) by every P(feature|C)
+                for feature, value in correlant_evidence.items():
+                    if feature in self.category_cpts:
+                        cpt = category_cpts_class_only[feature]
+                        logp_correlant[label] -= math.log(cpt.probs({C: label}))
+                    else:
+                        cpt = continuous_cpts_class_only[feature]
+                        dist_props: dict[str, float] = cpt.probs({C: label})
+                        logp_correlant[label] -= math.log(util.gauss(value, **dist_props))
+            # class nb
+            logscores: dict[str, float] = {
+                label: math.log(self.category_cpts[C].probs()[label]) + logp_correlant[label]
+                for label in self.klass[1]
+            }
+            for label in self.klass[1]:
+                feat_evidence: dict[str, str] = {C: label, CORR: class_evidence[CORR]}
+                # i'm pretty sure we're supposed to use probabilities given class and correlant?
+                # if we summed out the correlant we'd just be canceling out logp_correlant's denominator
+                for feature, value in correlant_evidence.items():
+                    if feature in self.category_cpts:
+                        logscores[label] += math.log(self.category_cpts[feature].probs(feat_evidence)[value])
+                    else:
+                        dist_props: dict[str, float] = self.continuous_cpts[feature].probs(feat_evidence)
+                        logscores[label] += math.log(util.gauss(value, **dist_props))
+            # and finally do the prediction with argmax
+            return max(logscores.keys(), key=logscores.get)
+        return bneval
 
 if __name__ == "__main__":
     import sys
