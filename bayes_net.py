@@ -2,8 +2,10 @@ import math
 import numpy as np
 import pandas as pd
 import random
-from tqdm import tqdm
 import util
+from concurrent.futures import ProcessPoolExecutor
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 from typing import Callable
 
 tqdm.pandas()
@@ -19,11 +21,27 @@ def main(argv):
     print("getting dataset")
     if len(argv) > 1:
         random.seed(int(argv[1]))
-    mushrooms, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test = util.data_prep()
-    correlant: str = random.choice(list(util.category_feats))
-    print(f"testing BN w/ {correlant} as correlant")
-    bn, y_pred, cm = try_bn(correlant, X_train, y_train, X_validate, y_validate)
-    print(cm.everythingdict())
+    mushrooms = util.get_dataset()
+    X: pd.DataFrame = mushrooms.data.features
+    y: pd.DataFrame = mushrooms.data.targets
+    # 98% train 1% validate 1% test
+    X_big_train, X_test, y_big_train, y_test = train_test_split(X, y, test_size=0.01)
+    X_train, X_validate, y_train, y_validate = train_test_split(X_big_train, y_big_train, test_size=0.01/0.99, shuffle=False)
+    val_results: dict[str, util.ConfusionMatrix] = {}
+    correlants: list[str] = list(util.category_feats.keys())
+    print(f"finding best correlant out of {len(correlants)} to use for tree-augmented nb")
+    for correlant in correlants:
+        print(correlant)
+        bn, y_pred, cm = try_bn(correlant, X_train, y_train, X_validate, y_validate)
+        val_results[correlant] = cm
+    validation_df = pd.DataFrame({k: v.everythingdict() for k, v in val_results.items()}).T
+    validation_df.to_csv("bayes_net.csv", mode="w")
+    print(validation_df)
+    best_correlant = min(val_results.keys(), key=lambda c: val_results[c].FPR())
+    print(f"correlant {best_correlant} has lowest FPR of {val_results[best_correlant].FPR()}")
+    print("running it on test set")
+    best_bn, best_y_pred, best_cm = try_bn(best_correlant, X_big_train, y_big_train, X_test, y_test)
+    print(best_cm.everythingdict())
 
 class CPT:
     """conditional probability table for category target"""

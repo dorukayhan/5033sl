@@ -76,7 +76,12 @@ def gauss(a: float, mean: float, var: float) -> float:
         var = 1
     pay: float = math.exp(-((a - mean) ** 2) / (2 * var))
     payda: float = math.sqrt(2 * math.pi * var)
-    return pay / payda
+    # even more hideous bandaid: this only gets called in math.log
+    # so if the numerator is 0 for some reason give up and return 1
+    if (pay / payda) <= 0:
+        return 1
+    else:
+        return pay/payda
 
 def plot_nb_results(results: pd.DataFrame):
     fig, ax = plt.subplots()
