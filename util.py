@@ -69,6 +69,11 @@ def data_prep(tts_seed: Optional[int]=None) -> tuple[dotdict, pd.DataFrame, pd.D
 
 def gauss(a: float, mean: float, var: float) -> float:
     """gaussian probability evaluator"""
+    # hideous bandaid: assume standard normal dist if the numbers are off
+    if math.isnan(mean):
+        mean = 0
+    if math.isnan(var) or var == 0:
+        var = 1
     pay: float = math.exp(-((a - mean) ** 2) / (2 * var))
     payda: float = math.sqrt(2 * math.pi * var)
     return pay / payda

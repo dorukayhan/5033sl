@@ -1,12 +1,29 @@
 import math
 import numpy as np
 import pandas as pd
+import random
+from tqdm import tqdm
 import util
 from typing import Callable
 
+tqdm.pandas()
+
+def unnan(maybenan: str | float) -> float:
+    if isinstance(maybenan, float) and math.isnan(maybenan):
+        return "nan"
+    else:
+        return maybenan
+
 def main(argv):
-    # TODO
-    pass
+    # get and 3-way split dataset
+    print("getting dataset")
+    if len(argv) > 1:
+        random.seed(int(argv[1]))
+    mushrooms, X, y, X_train, X_validate, X_test, y_train, y_validate, y_test = util.data_prep()
+    correlant: str = random.choice(list(util.category_feats))
+    print(f"testing BN w/ {correlant} as correlant")
+    bn, y_pred, cm = try_bn(correlant, X_train, y_train, X_validate, y_validate)
+    print(cm.everythingdict())
 
 class CPT:
     """conditional probability table for category target"""
@@ -35,9 +52,9 @@ class CPT:
             except KeyError: # count not recorded, assume 0
                 return 0
         # other than that the math is the same as naive bayes training
-        denom: int = (self.counts[*query].sum() if query else self.counts.sum()) + 1
+        denom: int = (self.counts.get(tuple(query), default=pd.Series(dtype=int)).sum() if query else self.counts.sum()) + 1
         return {
-            tgt: (get_count(tgt) + (1/len(self.domains[self.target]))) / denom
+            unnan(tgt): (get_count(tgt) + (1/len(self.domains[self.target]))) / denom
             for tgt in self.domains[self.target]
         }
 
@@ -57,7 +74,7 @@ class ContinuousCPT(CPT):
     def probs(self, evidence: dict[str, str]) -> dict[str, float]:
         query: list[str] = [evidence[name] for name in self.evidence_names]
         return {
-            stat: self.stats[stat][self.target][*query]
+            stat: self.stats[stat][self.target][query[0] if len(query) == 1 else tuple(query)]
             for stat in ("mean", "var")
         }
 
@@ -82,14 +99,14 @@ class TreeAugmentedNB:
                 self.category_cpts[feature] = CPT(data, (feature, values), evidence)
         self.category_domains: dict[str, set[str]] = category_feats # might need this too
     
-    def create_bneval(self, **kwargs) -> Callable[[pd.Series], str]:
+    def create_bneval(self) -> Callable[[pd.Series], str]:
         """returns function to pass to X_test.apply to get predictions"""
         category_cpts_class_only: dict[str, CPT] = {
-            feat: CPT(data, (feat, self.category_domains[feat]), {self.klass[0]: self.klass[1]})
-            for feat in self.category_cpts if f != self.correlant
+            feat: CPT(self.data, (feat, self.category_domains[feat]), {self.klass[0]: self.klass[1]})
+            for feat in self.category_domains if feat != self.correlant
         }
         continuous_cpts_class_only: dict[str, ContinuousCPT] = {
-            feat: ContinuousCPT(data, feat, {self.klass[0]: self.klass[1]})
+            feat: ContinuousCPT(self.data, feat, {self.klass[0]: self.klass[1]})
             for feat in self.continuous_cpts.keys()
         }
         def bneval(instance: pd.Series) -> str:
@@ -98,13 +115,12 @@ class TreeAugmentedNB:
             # though for correlant we just find the probability of its given value instead of its most likely value
             C: str = self.klass[0] # self.klass[0] is too long to type out constantly
             CORR: str = self.correlant # so is self.correlant
-            # also dicts play nice with np.nan keys
             class_evidence: dict = instance.to_dict()
             correlant_evidence: dict = {k: v for k, v in class_evidence.items() if k != CORR}
             correlant_cpt: CPT = self.category_cpts[CORR]
             # correlant nb - finding P(correlant|C) w/ unknown C so need to do it for every label
             logp_correlant: dict[str, float] = {
-                label: math.log(correlant_cpt.probs({C: label})[class_evidence[CORR]])
+                label: math.log(correlant_cpt.probs({C: label})[unnan(class_evidence[CORR])])
                 for label in self.klass[1]
             }
             for label in self.klass[1]:
@@ -112,19 +128,20 @@ class TreeAugmentedNB:
                 # the numerator
                 for feature, value in correlant_evidence.items():
                     if feature in self.category_cpts:
-                        logp_correlant[label] += math.log(self.category_cpts[feature].probs(feat_evidence)[value])
+                        # print(self.category_cpts[feature].probs(feat_evidence))
+                        logp_correlant[label] += math.log(self.category_cpts[feature].probs(feat_evidence)[unnan(value)])
                     else:
                         dist_props: dict[str, float] = self.continuous_cpts[feature].probs(feat_evidence)
-                        logp_correlant[label] += math.log(util.gauss(value, **dist_props))
+                        logp_correlant[label] += math.log(util.gauss(unnan(value), **dist_props))
                 # the denominator - divide P(correlant|C) by every P(feature|C)
                 for feature, value in correlant_evidence.items():
                     if feature in self.category_cpts:
                         cpt = category_cpts_class_only[feature]
-                        logp_correlant[label] -= math.log(cpt.probs({C: label}))
+                        logp_correlant[label] -= math.log(cpt.probs({C: label})[unnan(value)])
                     else:
                         cpt = continuous_cpts_class_only[feature]
                         dist_props: dict[str, float] = cpt.probs({C: label})
-                        logp_correlant[label] -= math.log(util.gauss(value, **dist_props))
+                        logp_correlant[label] -= math.log(util.gauss(unnan(value), **dist_props))
             # class nb
             logscores: dict[str, float] = {
                 label: math.log(self.category_cpts[C].probs()[label]) + logp_correlant[label]
@@ -136,13 +153,24 @@ class TreeAugmentedNB:
                 # if we summed out the correlant we'd just be canceling out logp_correlant's denominator
                 for feature, value in correlant_evidence.items():
                     if feature in self.category_cpts:
-                        logscores[label] += math.log(self.category_cpts[feature].probs(feat_evidence)[value])
+                        logscores[label] += math.log(self.category_cpts[feature].probs(feat_evidence)[unnan(value)])
                     else:
                         dist_props: dict[str, float] = self.continuous_cpts[feature].probs(feat_evidence)
-                        logscores[label] += math.log(util.gauss(value, **dist_props))
+                        logscores[label] += math.log(util.gauss(unnan(value), **dist_props))
             # and finally do the prediction with argmax
             return max(logscores.keys(), key=logscores.get)
         return bneval
+
+def try_bn(correlant: str, X_train: pd.DataFrame, y_train: pd.DataFrame, X_test: pd.DataFrame, y_test: pd.DataFrame) -> tuple[TreeAugmentedNB, pd.Series, util.ConfusionMatrix]:
+    data: pd.DataFrame = pd.concat([X_train, y_train], axis="columns", join="inner").fillna("nan")
+    bn = TreeAugmentedNB(data, ("class", util.labels), util.category_feats, util.continuous_feats, correlant)
+    y_pred: pd.Series = X_test.fillna("nan").progress_apply(bn.create_bneval(), axis="columns", result_type="reduce")
+    result: pd.DataFrame = y_pred.compare(y_test["class"], keep_shape=True, keep_equal=True)
+    TP: int = len(result.loc[(result["self"] == "e") & (result["other"] == "e")])
+    TN: int = len(result.loc[(result["self"] == "p") & (result["other"] == "p")])
+    FP: int = len(result.loc[(result["self"] == "e") & (result["other"] == "p")])
+    FN: int = len(result.loc[(result["self"] == "p") & (result["other"] == "e")])
+    return bn, y_pred, util.ConfusionMatrix(TP, TN, FP, FN)
 
 if __name__ == "__main__":
     import sys
