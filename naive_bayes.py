@@ -19,11 +19,15 @@ def main(argv: list[str]=[]):
     results: list[dict[str, int | float]] = []
     run_count: int = 50
     print(f"splitting dataset {run_count} different ways to train nb")
-    with ProcessPoolExecutor() as executor:
-        results = [
-            ConfusionMatrix(TP, TN, FP, FN).everythingdict() for TP, TN, FP, FN
-            in tqdm(executor.map(NB, [mushrooms]*run_count, random.sample(range(2**32), run_count)), total=run_count)
-        ]
+    # with ProcessPoolExecutor() as executor:
+    #     results = [
+    #         ConfusionMatrix(TP, TN, FP, FN).everythingdict() for TP, TN, FP, FN
+    #         in tqdm(executor.map(NB, [mushrooms]*run_count, random.sample(range(2**32), run_count)), total=run_count)
+    #     ]
+    results = [
+        ConfusionMatrix(TP, TN, FP, FN).everythingdict() for TP, TN, FP, FN
+        in tqdm(map(NB, [mushrooms]*run_count, random.sample(range(2**32), run_count)), total=run_count)
+    ]
     result_df: pd.DataFrame = pd.DataFrame(results)
     result_df.to_csv("naive_bayes.csv", mode="w", index=False)
     util.plot_nb_results(result_df)
